@@ -1,0 +1,134 @@
+---
+title: "BandaBeau Orders Forecast"
+output: html_notebook
+---
+
+```{r}
+library(forecast)
+library(smooth)
+```
+
+```{r}
+BandaBeauOrdersTrain = BandaBeauOrdersGrouped[1:13,]
+BandaBeauOrdersTest = BandaBeauOrdersGrouped[14:17,]
+```
+
+```{r}
+#Simple Moving Average
+library(tseries)
+library(greybox)
+library(smooth)
+SMAmodel = sma(BandaBeauOrdersTrain$`Order Count`, h = 4)
+summary(SMAmodel)
+```
+
+```{r}
+SMAmodel.predict = forecast(SMAmodel, h = 4)
+plot(SMAmodel.predict)
+```
+```{r}
+#Check Accuracy
+sqrt(mean((SMAmodel.predict$forecast - BandaBeauOrdersTest$`Order Count`)^2))
+```
+
+```{r}
+MAPE(SMAmodel.predict$forecast, BandaBeauOrdersTest$`Order Count`)
+```
+
+```{r}
+#Fit Holt Winters Model
+HoltWintersModel = HoltWinters(BandaBeauOrdersTrain$`Order Count`, alpha = 0.2, beta = F, gamma = F)
+#Predict using Holt Wintes model
+HoltWintersModel.predict = forecast(HoltWintersModel, n.ahead = 4, prediction.interval = T)
+#Plot predictions
+plot(HoltWintersModel.predict)
+#plot.ts(BandaBeauOrdersTrain$`Order Count`, xlim = c(1, 17))
+#lines(HoltWintersModel$fitted[,1], col = "blue")
+#lines(HoltWintersModel.predict[,1], col = "red")
+```
+
+```{r}
+# Calculate RMSE
+sqrt(mean(HoltWintersModel.predict[,1] - BandaBeauOrdersTest$`Order Count`)^2)
+```
+
+```{r}
+#Calculate MAPE
+MAPE(HoltWintersModel.predict[,1], BandaBeauOrdersTest$`Order Count`)
+```
+
+```{r}
+HoltWintersModel.predict$mean
+```
+
+```{r}
+#ARIMA model
+ArimaModel = auto.arima(BandaBeauOrdersTrain$`Order Count`, trace = T, ic = "aic")
+#ArimaModel = arima(BandaBeauOrdersTrain$`Order Count`, order = c(0,0,1))
+summary(ArimaModel)
+confint(ArimaModel)
+```
+
+```{r}
+#Check ACF plot
+acf(diff(BandaBeauOrdersTrain$`Order Count`))
+```
+
+```{r}
+#Check PACF plot
+pacf(diff(BandaBeauOrdersTrain$`Order Count`))
+```
+
+```{r}
+ArimaModel.predict = forecast(ArimaModel, h = 4)
+plot(ArimaModel.predict)
+```
+
+```{r}
+#Calculate accuracy
+sqrt(mean((ArimaModel.predict$mean - BandaBeauOrdersTest$`Order Count`)^2))
+```
+
+```{r}
+MAPE(ArimaModel.predict$mean, BandaBeauOrdersTest$`Order Count`)
+```
+
+```{r}
+summary(ArimaModel)
+```
+```{r}
+#Selected ARIMA model to be the best
+#ArimaModel2 = auto.arima(BandaBeauOrdersTrain$`Order Count`, trace = T, ic = "aic")
+ArimaModel2 = arima(BandaBeauOrdersGrouped$`Order Count`, order = c(0,0,5))
+summary(ArimaModel2)
+```
+
+```{r}
+#Forecast for next 6 months
+ArimaModel2.predict = forecast(ArimaModel2, h = 6)
+
+```
+
+```{r}
+NewDates = seq(from = as.Date("2018/11/01"), to = as.Date("2019/04/01"), "months")
+#AllDates = rbind(BandaBeauOrdersGrouped$Date, NewDates)
+AllDates = c(BandaBeauOrdersGrouped$Date, NewDates)
+AllOrders = c(BandaBeauOrdersGrouped$`Order Count`, ArimaModel2.predict$mean)
+AllOrders = round(AllOrders,0)
+```
+
+```{r}
+f = list(
+  family = "Courier New, monospace",
+  size = 18,
+  color = "#7f7f7f"
+)
+x = list(title = "Date", titlefont = f)
+y = list(title = "Order Count", titlefont = f)
+library(plotly)
+fig <- plot_ly(x = AllDates, y = AllOrders, mode = "lines", type = "scatter", name = "Forecast", line = list(color = 'rgb(205, 12, 24)', width = 4)) %>% layout(xaxis = x, yaxis = y, title = "BandaBeau Orders") %>% add_trace(y = BandaBeauOrdersGrouped$`Order Count`, x = BandaBeauOrdersGrouped$Date, name = "Original" ,line = list(color = 'rgb(22, 96, 167)', width = 4))
+fig
+```
+
+
+
